@@ -48,8 +48,11 @@ db.create_all()
 
 @app.route("/")
 def home():
-    data = db.session.query(Movie).all()
-    return render_template("index.html", movies = data)
+    all_movies = Movie.query.order_by(Movie.rating).all()
+    for i in range(len(all_movies)):
+        all_movies[i].ranking = len(all_movies) - i   
+    db.session.commit()
+    return render_template("index.html", movies = all_movies)
 
 
 @app.route("/edit/<mov_id>", methods = ['GET','POST'])
