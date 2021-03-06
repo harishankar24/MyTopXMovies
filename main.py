@@ -5,6 +5,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, DecimalField
 from wtforms.validators import DataRequired
 import requests
+from confidential import api_key
 from typing import Callable
 from os import system
 system('cls')
@@ -14,6 +15,7 @@ Bootstrap(app)
 app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///day64.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+SEARCH_MOVIE_API = "https://api.themoviedb.org/3/search/movie"
 
 class EditForm(FlaskForm):
     rating = DecimalField(label = "Your Rating Out of 10", validators = [DataRequired()])
@@ -43,25 +45,12 @@ class Movie(db.Model):
     img_url = db.Column(db.String(150), nullable = False)    
 db.create_all()
 
-# new_record = Movie(
-#     title = "Phone Booth",
-#     year = 2002,
-#     description = "Publicist Stuart Shepard finds himself trapped in a phone booth, pinned down by an extortionist's sniper rifle. Unable to leave or receive outside help, Stuart's negotiation with the caller leads to a jaw-dropping climax.",
-#     rating = 7.3,
-#     ranking = 10,
-#     review = "My favourite character was the caller.",
-#     img_url = "https://image.tmdb.org/t/p/w500/tjrX2oWRCM3Tvarz38zlZM7Uc10.jpg"
-# )
-# db.session.add(new_record)
-# db.session.commit()
-
-
-
 
 @app.route("/")
 def home():
     data = db.session.query(Movie).all()
     return render_template("index.html", movies = data)
+
 
 @app.route("/edit/<mov_id>", methods = ['GET','POST'])
 def edit(mov_id):
@@ -74,6 +63,8 @@ def edit(mov_id):
         return redirect(url_for('home'))
     return render_template("edit.html", form = editform, movie = movie)
 
+
+
 @app.route("/delete/<mov_id>")   
 def delete(mov_id):
     movie_to_delete = Movie.query.get(mov_id)
@@ -82,5 +73,64 @@ def delete(mov_id):
     data = db.session.query(Movie).all()
     return render_template("index.html", movies = data)
 
+
+
+@app.route("/add", methods = ['GET','POST'])
+def add():
+    addform = AddForm()
+    if addform.validate_on_submit():
+        title = addform.title.data
+        return redirect(url_for('select', title = title))
+    return render_template("add.html", form = addform)
+
+
+
+@app.route("/select/<int:id>")
+@app.route("/select/<string:title>", methods = ['GET','POST'])
+def select(title = '', id = 0):
+    if id:
+        print(f"id = {id}")
+        search_movie_parameters = {
+            "language": "en-US",
+            "api_key":api_key
+        }
+        response = requests.get(url = f"https://api.themoviedb.org/3/movie/{id}", params = search_movie_parameters)
+        response.raise_for_status()
+        data = response.json()
+        new_record = Movie(
+                title = f"{data['original_title']}",
+                year = f"{int(data['release_date'][0:4])}",
+                description =  data['overview'][:198],
+                rating = data['vote_average'],
+                ranking = None,
+                review = None,
+                img_url =  f"https://image.tmdb.org/t/p/w500{data['poster_path']}"
+        )
+        db.session.add(new_record)
+        db.session.commit()
+        return redirect(url_for('home'))
+    else:
+        search_movie_parameters = {
+            "language": "en-US",
+            "query":title,
+            "api_key":api_key
+        }
+        response = requests.get(url = SEARCH_MOVIE_API, params = search_movie_parameters)
+        response.raise_for_status()
+        data = response.json()["results"]
+        movies = []
+        for item in data:
+            temp_data = {
+                "id": item["id"],
+                "title": item['original_title'],
+                "release_date": item['release_date'],
+                "description": item['overview'],
+                "cover_img": item['poster_path']
+            }
+            movies.append(temp_data)
+        return render_template("select.html", movies = movies)
+
+
+    
 if __name__ == '__main__':
     app.run(debug=True)
