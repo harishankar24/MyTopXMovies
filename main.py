@@ -19,7 +19,10 @@ class EditForm(FlaskForm):
     rating = DecimalField(label = "Your Rating Out of 10", validators = [DataRequired()])
     review = StringField(label = "Your Review", validators = [DataRequired()])
     submit = SubmitField(label = "Save Changes")
-
+    
+class AddForm(FlaskForm):
+    title = StringField(label = "Movie Title", validators = [DataRequired()])
+    submit = SubmitField(label = "Add Movie")
 
 class MySQLAlchemy(SQLAlchemy):
     Column: Callable
@@ -70,8 +73,14 @@ def edit(mov_id):
         db.session.commit()
         return redirect(url_for('home'))
     return render_template("edit.html", form = editform, movie = movie)
-    
 
+@app.route("/delete/<mov_id>")   
+def delete(mov_id):
+    movie_to_delete = Movie.query.get(mov_id)
+    db.session.delete(movie_to_delete)
+    db.session.commit()
+    data = db.session.query(Movie).all()
+    return render_template("index.html", movies = data)
 
 if __name__ == '__main__':
     app.run(debug=True)
